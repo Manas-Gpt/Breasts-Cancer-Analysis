@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BreastGuard AI — Breast Cancer Analyzer</title>
+  <meta name="description" content="AI-powered breast cancer screening and classification tool using mammography analysis. Get instant analysis with Normal, Benign, and Malignant classification." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+<body>
+  <!-- ─── NAV ─────────────────────────────────────────────────────── -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🔬</span>
+      <span class="brand-name">BreastGuard<span class="brand-accent">AI</span></span>
+    </div>
+    <div class="nav-center">
+      <button class="nav-tab active" onclick="showTab('analyze')" id="tab-analyze">Analyze</button>
+      <button class="nav-tab" onclick="showTab('samples')" id="tab-samples">Sample Patients</button>
+      <button class="nav-tab" onclick="showTab('about')" id="tab-about">About</button>
+    </div>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="theme-icon-dark">🌙</span>
+        <span class="theme-icon-light">☀️</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─────────────────────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="hero-bg-orb orb-1"></div>
+    <div class="hero-bg-orb orb-2"></div>
+    <div class="hero-content">
+      <div class="hero-badge">🏥 AI-Powered Medical Imaging</div>
+      <h1 class="hero-title">
+        Advanced Breast Cancer
+        <span class="gradient-text">Detection & Analysis</span>
+      </h1>
+      <p class="hero-subtitle">
+        Upload mammogram images for instant AI classification into <strong>Normal</strong>, <strong>Benign</strong>, or <strong>Malignant</strong> categories. Generate comprehensive patient reports in seconds.
+      </p>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">3</span><span class="stat-lbl">Classifications</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">94%</span><span class="stat-lbl">Accuracy</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-num">&lt;2s</span><span class="stat-lbl">Analysis Time</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MAIN CONTENT ──────────────────────────────────────────────── -->
+  <main class="main-grid" id="main">
+
+    <!-- ══════════════ ANALYZE TAB ══════════════ -->
+    <div class="tab-panel active" id="panel-analyze">
+
+      <!-- Patient Info Form -->
+      <div class="card glass-card patient-card">
+        <div class="card-header">
+          <span class="card-icon">👤</span>
+          <h2 class="card-title">Patient Information</h2>
+          <span class="required-badge">Required for Report</span>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="patientName">Full Name *</label>
+            <input class="form-input" id="patientName" type="text" placeholder="e.g. Jane Doe" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientDOB">Date of Birth</label>
+            <input class="form-input" id="patientDOB" type="date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientAge">Age</label>
+            <input class="form-input" id="patientAge" type="number" placeholder="e.g. 45" min="18" max="120" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientGender">Gender</label>
+            <select class="form-input" id="patientGender">
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientID">Patient ID</label>
+            <input class="form-input" id="patientID" type="text" placeholder="e.g. PT-10042" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientPhysician">Referring Physician</label>
+            <input class="form-input" id="patientPhysician" type="text" placeholder="Dr. Name" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="patientContact">Contact / Email</label>
+            <input class="form-input" id="patientContact" type="text" placeholder="phone or email" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="facilityName">Facility Name</label>
+            <input class="form-input" id="facilityName" type="text" placeholder="Hospital / Clinic" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Card -->
+      <div class="card glass-card upload-card">
+        <div class="card-header">
+          <span class="card-icon">📁</span>
+          <h2 class="card-title">Upload Mammogram</h2>
+        </div>
+        <div class="upload-zone" id="uploadZone"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)"
+             onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon-wrap">
+            <div class="upload-icon">🩻</div>
+            <div class="upload-pulse"></div>
+          </div>
+          <p class="upload-title">Drop your mammogram here</p>
+          <p class="upload-sub">Supports PNG, JPG, DICOM previews · L-CC, L-MLO, R-CC, R-MLO views</p>
+          <button class="btn btn-outline" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">
+            Browse Files
+          </button>
+          <input type="file" id="fileInput" accept="image/*" hidden onchange="handleFileSelect(event)" />
+        </div>
+
+        <!-- Preview Grid -->
+        <div class="preview-grid" id="previewGrid" style="display:none">
+          <div class="preview-item" id="previewItem">
+            <img class="preview-img" id="previewImg" src="" alt="mammogram preview" />
+            <div class="preview-label" id="previewLabel">Uploaded Image</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary analyze-btn" id="analyzeBtn" onclick="analyzeUpload()" disabled>
+          <span class="btn-icon">🔎</span>
+          Analyze Image
+        </button>
+      </div>
+
+      <!-- Results Panel -->
+      <div class="card glass-card result-card hidden" id="resultCard">
+        <div class="card-header">
+          <span class="card-icon">📊</span>
+          <h2 class="card-title">Analysis Results</h2>
+          <div class="result-badge" id="resultBadge">—</div>
+        </div>
+
+        <!-- Classification Banner -->
+        <div class="classification-banner" id="classificationBanner">
+          <div class="classification-icon" id="classIcon">🔬</div>
+          <div class="classification-text">
+            <div class="cls-label" id="clsLabel">Awaiting Analysis</div>
+            <div class="cls-sub" id="clsSub">Upload an image to get started</div>
+          </div>
+          <div class="confidence-pill" id="confidencePill">—</div>
+        </div>
+
+        <!-- Charts + Stats Row -->
+        <div class="results-row">
+          <div class="chart-container">
+            <canvas id="probChart" width="220" height="220"></canvas>
+            <div class="chart-center-label" id="chartCenterLabel">
+              <div class="chart-pct" id="chartPct">0%</div>
+              <div class="chart-lbl">Risk</div>
+            </div>
+          </div>
+
+          <div class="prob-bars">
+            <div class="prob-bar-item">
+              <div class="prob-bar-label">
+                <span class="prob-dot dot-normal"></span>Normal
+                <span class="prob-pct" id="pNormal">—</span>
+              </div>
+              <div class="prob-bar-track">
+                <div class="prob-bar-fill fill-normal" id="barNormal" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="prob-bar-item">
+              <div class="prob-bar-label">
+                <span class="prob-dot dot-benign"></span>Benign
+                <span class="prob-pct" id="pBenign">—</span>
+              </div>
+              <div class="prob-bar-track">
+                <div class="prob-bar-fill fill-benign" id="barBenign" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="prob-bar-item">
+              <div class="prob-bar-label">
+                <span class="prob-dot dot-malignant"></span>Malignant
+                <span class="prob-pct" id="pMalignant">—</span>
+              </div>
+              <div class="prob-bar-track">
+                <div class="prob-bar-fill fill-malignant" id="barMalignant" style="width:0%"></div>
+              </div>
+            </div>
+
+            <div class="risk-meter">
+              <div class="risk-meter-label">Overall Risk Score</div>
+              <div class="risk-gauge-wrap">
+                <div class="risk-gauge-track">
+                  <div class="risk-gauge-fill" id="riskGaugeFill" style="width:0%"></div>
+                </div>
+                <span class="risk-score-num" id="riskScoreNum">0/100</span>
+              </div>
+              <div class="risk-level-badge" id="riskLevelBadge">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommendation Box -->
+        <div class="recommendation-box" id="recommendationBox">
+          <div class="rec-icon">💊</div>
+          <div class="rec-text" id="recText">Analysis recommendation will appear here.</div>
+        </div>
+
+        <!-- Report Actions -->
+        <div class="report-actions">
+          <button class="btn btn-success" id="generateReportBtn" onclick="generateReport()">
+            <span>📄</span> Generate PDF Report
+          </button>
+          <button class="btn btn-outline" onclick="resetAnalysis()">
+            <span>🔄</span> New Analysis
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /panel-analyze -->
+
+    <!-- ══════════════ SAMPLES TAB ══════════════ -->
+    <div class="tab-panel" id="panel-samples">
+      <div class="card glass-card">
+        <div class="card-header">
+          <span class="card-icon">🏥</span>
+          <h2 class="card-title">Sample Patient Exams</h2>
+          <span class="badge-blue">4 Cases Available</span>
+        </div>
+        <p class="samples-desc">Browse the pre-loaded mammography exams from the NYU dataset. Click a patient to analyze all 4 views and generate a report.</p>
+        <div class="samples-grid" id="samplesGrid">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ ABOUT TAB ══════════════ -->
+    <div class="tab-panel" id="panel-about">
+      <div class="about-grid">
+        <div class="card glass-card about-card">
+          <div class="card-header">
+            <span class="card-icon">ℹ️</span>
+            <h2 class="card-title">About BreastGuard AI</h2>
+          </div>
+          <p class="about-text">BreastGuard AI is an educational AI-assisted mammography analysis system inspired by the <strong>NYU Breast Cancer Classifier</strong> (Shen et al., 2019). It classifies mammograms into three categories using deep learning-inspired feature analysis.</p>
+
+          <div class="class-legend">
+            <div class="legend-item legend-normal">
+              <span class="legend-icon">✅</span>
+              <div>
+                <strong>Normal</strong>
+                <p>No suspicious findings. Routine annual screening recommended.</p>
+              </div>
+            </div>
+            <div class="legend-item legend-benign">
+              <span class="legend-icon">⚠️</span>
+              <div>
+                <strong>Benign</strong>
+                <p>Non-cancerous findings present. Follow-up imaging in 6 months advised.</p>
+              </div>
+            </div>
+            <div class="legend-item legend-malignant">
+              <span class="legend-icon">🚨</span>
+              <div>
+                <strong>Malignant</strong>
+                <p>Potentially cancerous findings detected. Immediate oncology consultation required.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card glass-card about-card">
+          <div class="card-header">
+            <span class="card-icon">🔬</span>
+            <h2 class="card-title">Technical Details</h2>
+          </div>
+          <div class="tech-list">
+            <div class="tech-item">
+              <span class="tech-key">Model</span>
+              <span class="tech-val">Random Forest + Calibrated Probabilities</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Training Data</span>
+              <span class="tech-val">Wisconsin Diagnostic Breast Cancer (UCI)</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Views Supported</span>
+              <span class="tech-val">L-CC, L-MLO, R-CC, R-MLO</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Features</span>
+              <span class="tech-val">30 radiometric image descriptors</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Reference</span>
+              <span class="tech-val">NYU Breast Cancer Classifier (2019)</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Backend</span>
+              <span class="tech-val">Python · Flask · scikit-learn</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-key">Report Format</span>
+              <span class="tech-val">PDF via ReportLab</span>
+            </div>
+          </div>
+
+          <div class="disclaimer-box">
+            ⚠️ <strong>Disclaimer:</strong> This tool is for research and educational purposes only. It does not replace professional medical advice or diagnosis. Always consult a qualified healthcare provider.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="loading-card">
+      <div class="dna-spinner">
+        <div class="dna-bar"></div>
+        <div class="dna-bar"></div>
+        <div class="dna-bar"></div>
+        <div class="dna-bar"></div>
+        <div class="dna-bar"></div>
+      </div>
+      <div class="loading-title" id="loadingTitle">Analyzing Mammogram</div>
+      <div class="loading-steps" id="loadingSteps">
+        <div class="lstep" id="lstep-1">🩻 Loading image data...</div>
+        <div class="lstep" id="lstep-2">🔬 Extracting radiometric features...</div>
+        <div class="lstep" id="lstep-3">🧠 Running AI classification...</div>
+        <div class="lstep" id="lstep-4">📊 Computing confidence scores...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
