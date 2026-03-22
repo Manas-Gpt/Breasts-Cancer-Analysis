@@ -28,17 +28,25 @@ An AI-powered mammography analysis web application that classifies breast cancer
 # 1. Clone/navigate to project
 cd d:\Projects\breasts_cancer_analysis
 
-# 2. Install dependencies
+# 2. Create and activate virtual environment (required — avoids numpy conflicts)
+python -m venv venv
+.\venv\Scripts\activate        # Windows
+# source venv/bin/activate     # macOS / Linux
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Train the ML model (one-time)
-python app/model/train_model.py
+# 4. Train the ML model (one-time only)
+.\venv\Scripts\python app/model/train_model.py
 
-# 4. Start the server
-python app/server.py
+# 5. Start the server
+.\venv\Scripts\python app/server.py
 ```
 
 Open **http://localhost:5000** in your browser.
+
+> **Note:** Always use `.\venv\Scripts\python` (or activate the venv first) to avoid numpy/scikit-learn ABI conflicts with a system-wide Python installation.
+
 
 ---
 

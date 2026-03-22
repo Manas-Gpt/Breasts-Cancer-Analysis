@@ -3,124 +3,137 @@ Breast cancer prediction module.
 Loads model and generates predictions with detailed analysis.
 """
 import os
-import pickle
 import numpy as np
 import joblib
 from PIL import Image
 import io
-import base64
 
 # Load model once at module level
 _MODEL = None
-_META = None
+_META  = None
 
 def _load_model():
     global _MODEL, _META
     if _MODEL is None:
         model_path = os.path.join(os.path.dirname(__file__), 'breast_cancer_model.pkl')
-        meta_path = os.path.join(os.path.dirname(__file__), 'model_meta.pkl')
+        meta_path  = os.path.join(os.path.dirname(__file__), 'model_meta.pkl')
         _MODEL = joblib.load(model_path)
-        _META = joblib.load(meta_path)
+        _META  = joblib.load(meta_path)
     return _MODEL, _META
 
-def analyze_image(image_data: bytes) -> dict:
+
+def analyze_image(image_data: bytes) -> np.ndarray:
     """
-    Analyze a mammogram image and extract pseudo-features for classification.
-    Returns feature vector derived from image statistics.
+    Extract 30 pseudo-features from a mammogram image.
+    Uses pure numpy (no scipy) on a small thumbnail — fast and crash-safe.
     """
-    img = Image.open(io.BytesIO(image_data)).convert('L')  # grayscale
-    img_resized = img.resize((128, 128))
-    arr = np.array(img_resized, dtype=np.float64)
+    img = Image.open(io.BytesIO(image_data)).convert('L')   # grayscale
+    # Aggressively downsample — we only need texture stats, not full resolution
+    img = img.resize((64, 64), Image.LANCZOS)
+    arr = np.array(img, dtype=np.float64)                   # 64x64 array
 
-    # Extract statistical features that approximate WDBC features
-    # These are texture/intensity features analogous to cell nucleus measurements
-    features = []
+    mean_v  = arr.mean()
+    std_v   = arr.std()
+    max_v   = arr.max()
+    min_v   = arr.min()
+    rng_v   = max_v - min_v
 
-    # Mean intensity (radius mean proxy)
-    features.append(arr.mean() / 255.0 * 28)                 # radius_mean range ~6-28
+    # Simple gradient via finite differences (no scipy needed)
+    grad_x  = np.diff(arr, axis=1)
+    grad_y  = np.diff(arr, axis=0)
+    edge    = np.abs(grad_x[:63, :]).mean() + np.abs(grad_y[:, :63]).mean()
 
-    # Texture: std of intensities
-    features.append(arr.std() / 255.0 * 39)                  # texture_mean range ~9-39
+    # Foreground / background ratio
+    bright  = (arr > mean_v).mean()
+    dark    = 1.0 - bright
 
-    # Perimeter mean proxy (edge detection)
-    from scipy.ndimage import sobel
-    sx = sobel(arr, axis=0)
-    sy = sobel(arr, axis=1)
-    edge_mag = np.hypot(sx, sy)
-    features.append(edge_mag.mean() / 255.0 * 188)           # perimeter_mean
+    # Quadrant asymmetry
+    q1 = arr[:32, :32].mean()
+    q2 = arr[:32, 32:].mean()
+    q3 = arr[32:, :32].mean()
+    q4 = arr[32:, 32:].mean()
+    asym_h = abs(q1 + q3 - q2 - q4) / (mean_v + 1e-9)
+    asym_v = abs(q1 + q2 - q3 - q4) / (mean_v + 1e-9)
 
-    # Area mean proxy
-    nonzero_frac = np.count_nonzero(arr > arr.mean()) / arr.size
-    features.append(nonzero_frac * 2501)                      # area_mean
+    # Contrast & homogeneity (simple)
+    contrast   = std_v / (mean_v + 1e-9)
+    uniformity = (arr / (max_v + 1e-9)).var()
 
-    # Smoothness = local variation
-    local_var = np.var(arr[::4, ::4])
-    features.append(local_var / (255**2) * 0.163)            # smoothness_mean
+    # Pack into 30 WDBC-like features using simple scaling
+    # Scale factors chosen to map into realistic WDBC ranges
+    features = np.array([
+        mean_v / 255.0 * 28,           # radius_mean          range ~6-28
+        std_v  / 255.0 * 39,           # texture_mean         range ~9-39
+        edge   / 10.0  * 188,          # perimeter_mean
+        bright * 2501,                 # area_mean
+        contrast * 0.16,               # smoothness_mean
+        uniformity * 0.35,             # compactness_mean
+        bright * 0.43,                 # concavity_mean
+        bright * 0.20,                 # concave_points_mean
+        asym_h * 0.30,                 # symmetry_mean
+        dark   * 0.097,                # fractal_dimension_mean
+        # SE (standard error) columns — ~20-30% of mean features
+        mean_v / 255.0 * 28  * 0.25,
+        std_v  / 255.0 * 39  * 0.28,
+        edge   / 10.0  * 188 * 0.22,
+        bright * 2501        * 0.20,
+        contrast * 0.16      * 0.30,
+        uniformity * 0.35    * 0.28,
+        bright * 0.43        * 0.25,
+        bright * 0.20        * 0.22,
+        asym_h * 0.30        * 0.30,
+        dark   * 0.097       * 0.28,
+        # Worst columns — ~2-3× mean features
+        mean_v / 255.0 * 28  * 2.8,
+        std_v  / 255.0 * 39  * 2.5,
+        edge   / 10.0  * 188 * 2.2,
+        bright * 2501        * 2.3,
+        contrast * 0.16      * 2.4,
+        uniformity * 0.35    * 2.6,
+        bright * 0.43        * 2.5,
+        bright * 0.20        * 2.7,
+        asym_h * 0.30        * 2.3,
+        dark   * 0.097       * 2.6,
+    ], dtype=np.float64)
 
-    # Compactness
-    features.append(edge_mag.std() / 255.0 * 0.345)
+    return features
 
-    # Concavity
-    features.append((arr > arr.mean() + arr.std()).mean() * 0.427)
-
-    # Concave points
-    features.append(features[6] * 0.201)
-
-    # Symmetry
-    left_half = arr[:, :64]
-    right_half = np.fliplr(arr[:, 64:])
-    symmetry = 1.0 - abs(left_half.mean() - right_half.mean()) / 255.0
-    features.append(symmetry * 0.304)
-
-    # Fractal dimension
-    features.append((1.0 - nonzero_frac) * 0.0974)
-
-    # SE versions (scale features by ~0.3)
-    for i in range(10):
-        features.append(features[i] * 0.3 * (1 + np.random.RandomState(i).uniform(-0.1, 0.1)))
-
-    # Worst versions (scale features by ~2.5)
-    for i in range(10):
-        features.append(features[i] * 2.5 * (1 + np.random.RandomState(i+10).uniform(-0.1, 0.1)))
-
-    return np.array(features[:30])
 
 def predict_from_features(features: list) -> dict:
-    """Predict from raw feature vector."""
+    """Predict from raw 30-feature vector."""
     model, meta = _load_model()
-    features_arr = np.array(features).reshape(1, -1)
+    features_arr = np.array(features, dtype=np.float64).reshape(1, -1)
 
-    proba = model.predict_proba(features_arr)[0]
+    proba      = model.predict_proba(features_arr)[0]
     pred_class = int(np.argmax(proba))
-    class_names = meta['class_names']  # ['Normal', 'Benign', 'Malignant']
+    class_names = meta['class_names']   # ['Normal', 'Benign', 'Malignant']
 
-    # Risk score: weighted by class index
     risk_score = float(proba[1] * 0.4 + proba[2] * 1.0)
-
-    # Confidence
     confidence = float(max(proba))
 
     return {
-        'prediction': pred_class,
-        'label': class_names[pred_class],
-        'probabilities': {
-            'normal': float(proba[0]),
-            'benign': float(proba[1]),
-            'malignant': float(proba[2])
+        'prediction':     pred_class,
+        'label':          class_names[pred_class],
+        'probabilities':  {
+            'normal':    float(proba[0]),
+            'benign':    float(proba[1]),
+            'malignant': float(proba[2]),
         },
-        'risk_score': min(risk_score, 1.0),
-        'confidence': confidence,
-        'feature_names': meta['feature_names'],
-        'risk_level': _get_risk_level(risk_score),
-        'recommendation': _get_recommendation(pred_class, confidence)
+        'risk_score':     min(risk_score, 1.0),
+        'confidence':     confidence,
+        'feature_names':  meta['feature_names'],
+        'risk_level':     _get_risk_level(risk_score),
+        'recommendation': _get_recommendation(pred_class, confidence),
     }
 
+
 def predict_from_image(image_data: bytes) -> dict:
-    """Predict from mammogram image."""
+    """Predict from mammogram image bytes."""
     features = analyze_image(image_data)
     result = predict_from_features(features.tolist())
     result['analysis_method'] = 'image'
     return result
+
 
 def _get_risk_level(risk_score: float) -> str:
     if risk_score < 0.2:
@@ -132,22 +145,23 @@ def _get_risk_level(risk_score: float) -> str:
     else:
         return 'Very High'
 
+
 def _get_recommendation(pred_class: int, confidence: float) -> str:
-    recommendations = {
+    return {
         0: "Results indicate normal findings. Continue with routine annual mammography screening as recommended by your physician.",
         1: "Benign findings detected. Recommend follow-up imaging in 6 months and consultation with a breast specialist for further evaluation.",
-        2: "Malignant findings detected. Immediate consultation with an oncologist is strongly recommended. Additional diagnostic tests (biopsy, MRI) should be performed urgently."
-    }
-    return recommendations[pred_class]
+        2: "Malignant findings detected. Immediate consultation with an oncologist is strongly recommended. Additional diagnostic tests (biopsy, MRI) should be performed urgently.",
+    }[pred_class]
+
 
 def get_sample_exams():
-    """Return list of sample exam IDs from sample_data."""
+    """Return sorted list of sample exam IDs from sample_data/images."""
     import glob
-    import os
-    images_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'sample_data', 'images')
-    images_dir = os.path.normpath(images_dir)
-    exam_ids = set()
-    for f in glob.glob(os.path.join(images_dir, '*.png')):
-        exam_id = os.path.basename(f).split('_')[0]
-        exam_ids.add(exam_id)
-    return sorted(list(exam_ids))
+    images_dir = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'sample_data', 'images')
+    )
+    exam_ids = {
+        os.path.basename(f).split('_')[0]
+        for f in glob.glob(os.path.join(images_dir, '*.png'))
+    }
+    return sorted(exam_ids)
